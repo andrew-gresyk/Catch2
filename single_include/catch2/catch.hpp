@@ -6806,6 +6806,10 @@ namespace Catch {
 // end catch_enforce.h
 namespace Catch {
 
+	// HACK: always break if debugger is present
+	bool isDebuggerActive();
+	// HACK: always break if debugger is present
+
     Config::Config( ConfigData const& data )
     :   m_data( data ),
         m_stream( openStream() )
@@ -6820,6 +6824,10 @@ namespace Catch {
                 parser.parse( testOrTags );
         }
         m_testSpec = parser.testSpec();
+
+		// HACK: always break if debugger is present
+		m_data.shouldDebugBreak |= isDebuggerActive();
+		// HACK: always break if debugger is present
     }
 
     std::string const& Config::getFilename() const {
