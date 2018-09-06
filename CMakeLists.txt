@@ -6,7 +6,7 @@ if(NOT DEFINED PROJECT_NAME)
   set(NOT_SUBPROJECT ON)
 endif()
 
-project(Catch2 LANGUAGES CXX VERSION 2.3.0)
+project(Catch2 LANGUAGES CXX VERSION 2.4.0)
 
 # Provide path for scripts
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/CMake")
@@ -37,8 +37,8 @@ if(USE_WMAIN)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /ENTRY:wmainCRTStartup")
 endif()
 
-find_package(PythonInterp)
 if (BUILD_TESTING AND CATCH_BUILD_TESTING AND NOT_SUBPROJECT)
+    find_package(PythonInterp)
     if (NOT PYTHONINTERP_FOUND)
         message(FATAL_ERROR "Python not found, but required for tests")
     endif()
