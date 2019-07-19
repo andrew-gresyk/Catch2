@@ -7,12 +7,16 @@
 
 #include "catch_matchers_floating.h"
 #include "catch_enforce.h"
+#include "catch_polyfills.hpp"
 #include "catch_to_string.hpp"
 #include "catch_tostring.h"
 
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
+#include <sstream>
+#include <iomanip>
+#include <limits>
 
 namespace Catch {
 namespace Matchers {
@@ -57,7 +61,7 @@ template <typename FP>
 bool almostEqualUlps(FP lhs, FP rhs, int maxUlpDiff) {
     // Comparison with NaN should always be false.
     // This way we can rule it out before getting into the ugly details
-    if (std::isnan(lhs) || std::isnan(rhs)) {
+    if (Catch::isnan(lhs) || Catch::isnan(rhs)) {
         return false;
     }
 
@@ -73,7 +77,15 @@ bool almostEqualUlps(FP lhs, FP rhs, int maxUlpDiff) {
     return ulpDiff <= maxUlpDiff;
 }
 
+template <typename FP>
+FP step(FP start, FP direction, int steps) {
+    for (int i = 0; i < steps; ++i) {
+        start = std::nextafter(start, direction);
+    }
+    return start;
 }
+
+} // end anonymous namespace
 
 
 namespace Catch {
@@ -124,7 +136,29 @@ namespace Floating {
 #endif
 
     std::string WithinUlpsMatcher::describe() const {
-        return "is within " + Catch::to_string(m_ulps) + " ULPs of " + ::Catch::Detail::stringify(m_target) + ((m_type == FloatingPointKind::Float)? "f" : "");
+        std::stringstream ret;
+
+        ret << "is within " << m_ulps << " ULPs of " << ::Catch::Detail::stringify(m_target);
+
+        if (m_type == FloatingPointKind::Float) {
+            ret << 'f';
+        }
+
+        ret << " ([";
+        ret << std::fixed << std::setprecision(std::numeric_limits<double>::max_digits10);
+        if (m_type == FloatingPointKind::Double) {
+            ret << step(m_target, static_cast<double>(-INFINITY), m_ulps)
+                << ", "
+                << step(m_target, static_cast<double>(INFINITY), m_ulps);
+        } else {
+            ret << step<float>(static_cast<float>(m_target), -INFINITY, m_ulps)
+                << ", "
+                << step<float>(static_cast<float>(m_target), INFINITY, m_ulps);
+        }
+        ret << "])";
+
+        return ret.str();
+        //return "is within " + Catch::to_string(m_ulps) + " ULPs of " + ::Catch::Detail::stringify(m_target) + ((m_type == FloatingPointKind::Float)? "f" : "");
     }
 
 }// namespace Floating

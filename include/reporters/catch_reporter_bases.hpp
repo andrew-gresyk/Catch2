@@ -25,6 +25,8 @@ namespace Catch {
     // Returns double formatted as %.3f (format expected on output)
     std::string getFormattedDuration( double duration );
 
+    std::string serializeFilters( std::vector<std::string> const& container );
+
     template<typename DerivedT>
     struct StreamingReporterBase : IStreamingReporter {
 
@@ -52,6 +54,7 @@ namespace Catch {
         void testRunStarting(TestRunInfo const& _testRunInfo) override {
             currentTestRunInfo = _testRunInfo;
         }
+
         void testGroupStarting(GroupInfo const& _groupInfo) override {
             currentGroupInfo = _groupInfo;
         }
@@ -217,7 +220,7 @@ namespace Catch {
             node->children.push_back(m_rootSection);
             m_testCases.push_back(node);
             m_rootSection.reset();
-        
+
             assert(m_deepestSection);
             m_deepestSection->stdOut = testCaseStats.stdOut;
             m_deepestSection->stdErr = testCaseStats.stdErr;
@@ -265,6 +268,8 @@ namespace Catch {
 
     struct TestEventListenerBase : StreamingReporterBase<TestEventListenerBase> {
         TestEventListenerBase( ReporterConfig const& _config );
+
+        static std::set<Verbosity> getSupportedVerbosities();
 
         void assertionStarting(AssertionInfo const&) override;
         bool assertionEnded(AssertionStats const&) override;

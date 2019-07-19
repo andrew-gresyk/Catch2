@@ -10,6 +10,7 @@
 #include "catch_console_colour.h"
 #include "catch_enforce.h"
 #include "catch_list.h"
+#include "catch_context.h"
 #include "catch_run_context.h"
 #include "catch_stream.h"
 #include "catch_test_spec.h"
@@ -42,20 +43,23 @@ namespace Catch {
                 return createReporter(config->getReporterName(), config);
             }
 
-            auto multi = std::unique_ptr<ListeningReporter>(new ListeningReporter);
-
+            // On older platforms, returning std::unique_ptr<ListeningReporter>
+            // when the return type is std::unique_ptr<IStreamingReporter>
+            // doesn't compile without a std::move call. However, this causes
+            // a warning on newer platforms. Thus, we have to work around
+            // it a bit and downcast the pointer manually.
+            auto ret = std::unique_ptr<IStreamingReporter>(new ListeningReporter);
+            auto& multi = static_cast<ListeningReporter&>(*ret);
             auto const& listeners = Catch::getRegistryHub().getReporterRegistry().getListeners();
             for (auto const& listener : listeners) {
-                multi->addListener(listener->create(Catch::ReporterConfig(config)));
+                multi.addListener(listener->create(Catch::ReporterConfig(config)));
             }
-            multi->addReporter(createReporter(config->getReporterName(), config));
-            return std::move(multi);
+            multi.addReporter(createReporter(config->getReporterName(), config));
+            return ret;
         }
 
 
         Catch::Totals runTests(std::shared_ptr<Config> const& config) {
-            // FixMe: Add listeners in order first, then add reporters.
-
             auto reporter = makeReporter(config);
 
             RunContext context(config, std::move(reporter));
@@ -68,7 +72,10 @@ namespace Catch {
 
             auto const& allTestCases = getAllTestCasesSorted(*config);
             for (auto const& testCase : allTestCases) {
-                if (!context.aborting() && matchTest(testCase, testSpec, *config))
+                bool matching = (!testSpec.hasFilters() && !testCase.isHidden()) ||
+                                 (testSpec.hasFilters() && matchTest(testCase, testSpec, *config));
+
+                if (!context.aborting() && matching)
                     totals += context.runTest(testCase);
                 else
                     context.reporter().skipTest(testCase);
@@ -127,6 +134,9 @@ namespace Catch {
 #if !defined(CATCH_CONFIG_DISABLE_EXCEPTIONS)
         const auto& exceptions = getRegistryHub().getStartupExceptionRegistry().getExceptions();
         if ( !exceptions.empty() ) {
+            config();
+            getCurrentMutableContext().setConfig(m_config);
+
             m_startupExceptions = true;
             Colour colourGuard( Colour::Red );
             Catch::cerr() << "Errors occurred during startup!" << '\n';
@@ -168,6 +178,8 @@ namespace Catch {
 
         auto result = m_cli.parse( clara::Args( argc, argv ) );
         if( !result ) {
+            config();
+            getCurrentMutableContext().setConfig(m_config);
             Catch::cerr()
                 << Colour( Colour::Red )
                 << "\nError(s) in input:\n"
@@ -185,22 +197,8 @@ namespace Catch {
         return 0;
     }
 
-    void Session::useConfigData( ConfigData const& configData ) {
-        m_configData = configData;
-        m_config.reset();
-    }
-
-    int Session::run( int argc, char* argv[] ) {
-        if( m_startupExceptions )
-            return 1;
-        int returnCode = applyCommandLine( argc, argv );
-        if( returnCode == 0 )
-            returnCode = run();
-        return returnCode;
-    }
-
-#if defined(CATCH_CONFIG_WCHAR) && defined(WIN32) && defined(UNICODE)
-    int Session::run( int argc, wchar_t* const argv[] ) {
+#if defined(CATCH_CONFIG_WCHAR) && defined(_WIN32) && defined(UNICODE)
+    int Session::applyCommandLine( int argc, wchar_t const * const * argv ) {
 
         char **utf8Argv = new char *[ argc ];
 
@@ -212,7 +210,7 @@ namespace Catch {
             WideCharToMultiByte( CP_UTF8, 0, argv[i], -1, utf8Argv[i], bufSize, NULL, NULL );
         }
 
-        int returnCode = run( argc, utf8Argv );
+        int returnCode = applyCommandLine( argc, utf8Argv );
 
         for ( int i = 0; i < argc; ++i )
             delete [] utf8Argv[ i ];
@@ -222,6 +220,12 @@ namespace Catch {
         return returnCode;
     }
 #endif
+
+    void Session::useConfigData( ConfigData const& configData ) {
+        m_configData = configData;
+        m_config.reset();
+    }
+
     int Session::run() {
         if( ( m_configData.waitForKeypress & WaitForKeypress::BeforeStart ) != 0 ) {
             Catch::cout() << "...waiting for enter/ return before starting" << std::endl;
@@ -267,7 +271,7 @@ namespace Catch {
                 applyFilenamesAsTags( *m_config );
 
             // Handle list request
-            if( Option<std::size_t> listed = list( config() ) )
+            if( Option<std::size_t> listed = list( m_config ) )
                 return static_cast<int>( *listed );
 
             auto totals = runTests( m_config );

@@ -3,15 +3,19 @@
 
 **Contents**<br>
 [main()/ implementation](#main-implementation)<br>
+[Reporter / Listener interfaces](#reporter--listener-interfaces)<br>
 [Prefixing Catch macros](#prefixing-catch-macros)<br>
 [Terminal colour](#terminal-colour)<br>
 [Console width](#console-width)<br>
 [stdout](#stdout)<br>
 [Fallback stringifier](#fallback-stringifier)<br>
 [Default reporter](#default-reporter)<br>
+[C++11 toggles](#c11-toggles)<br>
+[C++17 toggles](#c17-toggles)<br>
 [Other toggles](#other-toggles)<br>
 [Windows header clutter](#windows-header-clutter)<br>
 [Enabling stringification](#enabling-stringification)<br>
+[Disabling exceptions](#disabling-exceptions)<br>
 
 Catch is designed to "just work" as much as possible. For most people the only configuration needed is telling Catch which source file should host all the implementation code (```CATCH_CONFIG_MAIN```).
 
@@ -24,7 +28,7 @@ Nonetheless there are still some occasions where finer control is needed. For th
 
 Although Catch is header only it still, internally, maintains a distinction between interface headers and headers that contain implementation. Only one source file in your test project should compile the implementation headers and this is controlled through the use of one of these macros - one of these identifiers should be defined before including Catch in *exactly one implementation file in your project*.
 
-# Reporter / Listener interfaces
+## Reporter / Listener interfaces
 
     CATCH_CONFIG_EXTERNAL_INTERFACES  // Brings in necessary headers for Reporter/Listener implementation
 
@@ -85,7 +89,7 @@ them yourself, their signatures are:
 By default, when Catch's stringification machinery has to stringify
 a type that does not specialize `StringMaker`, does not overload `operator<<`,
 is not an enumeration and is not a range, it uses `"{?}"`. This can be
-overriden by defining `CATCH_CONFIG_FALLBACK_STRINGIFIER` to name of a
+overridden by defining `CATCH_CONFIG_FALLBACK_STRINGIFIER` to name of a
 function that should perform the stringification instead.
 
 All types that do not provide `StringMaker` specialization or `operator<<`
@@ -123,6 +127,8 @@ Catch's selection, by defining either `CATCH_CONFIG_CPP11_TO_STRING` or
 ## C++17 toggles
 
     CATCH_CONFIG_CPP17_UNCAUGHT_EXCEPTIONS  // Use std::uncaught_exceptions instead of std::uncaught_exception
+    CATCH_CONFIG_CPP17_STRING_VIEW          // Provide StringMaker specialization for std::string_view
+    CATCH_CONFIG_CPP17_VARIANT              // Override C++17 detection for CATCH_CONFIG_ENABLE_VARIANT_STRINGMAKER
 
 Catch contains basic compiler/standard detection and attempts to use
 some C++17 features whenever appropriate. This automatic detection
@@ -143,6 +149,8 @@ by using `_NO_` in the macro, e.g. `CATCH_CONFIG_NO_CPP17_UNCAUGHT_EXCEPTIONS`.
     CATCH_CONFIG_DISABLE                    // Disables assertions and test case registration
     CATCH_CONFIG_WCHAR                      // Enables use of wchart_t
     CATCH_CONFIG_EXPERIMENTAL_REDIRECT      // Enables the new (experimental) way of capturing stdout/stderr
+    CATCH_CONFIG_ENABLE_BENCHMARKING        // Enables the integrated benchmarking features (has a significant effect on compilation speed)
+    CATCH_CONFIG_USE_ASYNC                  // Force parallel statistical processing of samples during benchmarking
 
 Currently Catch enables `CATCH_CONFIG_WINDOWS_SEH` only when compiled with MSVC, because some versions of MinGW do not have the necessary Win32 API support.
 
@@ -194,10 +202,12 @@ On Windows Catch includes `windows.h`. To minimize global namespace clutter in t
 
 By default, Catch does not stringify some types from the standard library. This is done to avoid dragging in various standard library headers by default. However, Catch does contain these and can be configured to provide them, using these macros:
 
-    CATCH_CONFIG_ENABLE_PAIR_STRINGMAKER    // Provide StringMaker specialization for std::pair
-    CATCH_CONFIG_ENABLE_TUPLE_STRINGMAKER   // Provide StringMaker specialization for std::tuple
-    CATCH_CONFIG_ENABLE_CHRONO_STRINGMAKER  // Provide StringMaker specialization for std::chrono::duration, std::chrono::timepoint
-    CATCH_CONFIG_ENABLE_ALL_STRINGMAKERS    // Defines all of the above
+    CATCH_CONFIG_ENABLE_PAIR_STRINGMAKER     // Provide StringMaker specialization for std::pair
+    CATCH_CONFIG_ENABLE_TUPLE_STRINGMAKER    // Provide StringMaker specialization for std::tuple
+    CATCH_CONFIG_ENABLE_CHRONO_STRINGMAKER   // Provide StringMaker specialization for std::chrono::duration, std::chrono::timepoint
+    CATCH_CONFIG_ENABLE_VARIANT_STRINGMAKER  // Provide StringMaker specialization for std::variant, std::monostate (on C++17)
+    CATCH_CONFIG_ENABLE_OPTIONAL_STRINGMAKER // Provide StringMaker specialization for std::optional (on C++17)
+    CATCH_CONFIG_ENABLE_ALL_STRINGMAKERS     // Defines all of the above
 
 
 ## Disabling exceptions

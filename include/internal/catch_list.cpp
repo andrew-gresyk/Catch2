@@ -12,6 +12,7 @@
 #include "catch_interfaces_reporter.h"
 #include "catch_interfaces_testcase.h"
 
+#include "catch_context.h"
 #include "catch_stream.h"
 #include "catch_text.h"
 
@@ -124,7 +125,7 @@ namespace Catch {
         return tagCounts.size();
     }
 
-    std::size_t listReporters( Config const& /*config*/ ) {
+    std::size_t listReporters() {
         Catch::cout() << "Available reporters:\n";
         IReporterRegistry::FactoryMap const& factories = getRegistryHub().getReporterRegistry().getFactories();
         std::size_t maxNameLen = 0;
@@ -146,16 +147,17 @@ namespace Catch {
         return factories.size();
     }
 
-    Option<std::size_t> list( Config const& config ) {
+    Option<std::size_t> list( std::shared_ptr<Config> const& config ) {
         Option<std::size_t> listedCount;
-        if( config.listTests() )
-            listedCount = listedCount.valueOr(0) + listTests( config );
-        if( config.listTestNamesOnly() )
-            listedCount = listedCount.valueOr(0) + listTestsNamesOnly( config );
-        if( config.listTags() )
-            listedCount = listedCount.valueOr(0) + listTags( config );
-        if( config.listReporters() )
-            listedCount = listedCount.valueOr(0) + listReporters( config );
+        getCurrentMutableContext().setConfig( config );
+        if( config->listTests() )
+            listedCount = listedCount.valueOr(0) + listTests( *config );
+        if( config->listTestNamesOnly() )
+            listedCount = listedCount.valueOr(0) + listTestsNamesOnly( *config );
+        if( config->listTags() )
+            listedCount = listedCount.valueOr(0) + listTags( *config );
+        if( config->listReporters() )
+            listedCount = listedCount.valueOr(0) + listReporters();
         return listedCount;
     }
 

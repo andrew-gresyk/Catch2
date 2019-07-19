@@ -29,11 +29,11 @@
 
 #ifdef __cplusplus
 
-#  if __cplusplus >= 201402L
+#  if (__cplusplus >= 201402L) || (defined(_MSVC_LANG) && _MSVC_LANG >= 201402L)
 #    define CATCH_CPP14_OR_GREATER
 #  endif
 
-#  if __cplusplus >= 201703L
+#  if (__cplusplus >= 201703L) || (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
 #    define CATCH_CPP17_OR_GREATER
 #  endif
 
@@ -62,6 +62,12 @@
             _Pragma( "clang diagnostic push" ) \
             _Pragma( "clang diagnostic ignored \"-Wunused-variable\"" )
 #       define CATCH_INTERNAL_UNSUPPRESS_UNUSED_WARNINGS \
+            _Pragma( "clang diagnostic pop" )
+
+#       define CATCH_INTERNAL_SUPPRESS_ZERO_VARIADIC_WARNINGS \
+            _Pragma( "clang diagnostic push" ) \
+            _Pragma( "clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\"" )
+#       define CATCH_INTERNAL_UNSUPPRESS_ZERO_VARIADIC_WARNINGS \
             _Pragma( "clang diagnostic pop" )
 
 #endif // __clang__
@@ -109,7 +115,14 @@
 // Required for some versions of Cygwin to declare gettimeofday
 // see: http://stackoverflow.com/questions/36901803/gettimeofday-not-declared-in-this-scope-cygwin
 #   define _BSD_SOURCE
+// some versions of cygwin (most) do not support std::to_string. Use the libstd check. 
+// https://gcc.gnu.org/onlinedocs/gcc-4.8.2/libstdc++/api/a01053_source.html line 2812-2813
+# if !((__cplusplus >= 201103L) && defined(_GLIBCXX_USE_C99) \
+           && !defined(_GLIBCXX_HAVE_BROKEN_VSWPRINTF))
 
+#    define CATCH_INTERNAL_CONFIG_NO_CPP11_TO_STRING
+
+# endif
 #endif // __CYGWIN__
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +142,17 @@
 #    define CATCH_INTERNAL_CONFIG_WINDOWS_SEH
 #  endif
 
+// MSVC traditional preprocessor needs some workaround for __VA_ARGS__
+// _MSVC_TRADITIONAL == 0 means new conformant preprocessor
+// _MSVC_TRADITIONAL == 1 means old traditional non-conformant preprocessor
+#  if !defined(_MSVC_TRADITIONAL) || (defined(_MSVC_TRADITIONAL) && _MSVC_TRADITIONAL)
+#    define CATCH_INTERNAL_CONFIG_TRADITIONAL_MSVC_PREPROCESSOR
+#  endif
+#endif // _MSC_VER
+
+#if defined(_REENTRANT) || defined(_MSC_VER)
+// Enable async processing, as -pthread is specified or no additional linking is required
+# define CATCH_INTERNAL_CONFIG_USE_ASYNC
 #endif // _MSC_VER
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,6 +168,12 @@
 #endif // __DJGPP__
 
 ////////////////////////////////////////////////////////////////////////////////
+// Embarcadero C++Build
+#if defined(__BORLANDC__)
+    #define CATCH_INTERNAL_CONFIG_POLYFILL_ISNAN
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Use of __COUNTER__ is suppressed during code analysis in
 // CLion/AppCode 2017.2.x and former, because __COUNTER__ is not properly
@@ -153,6 +183,51 @@
 #if ( !defined(__JETBRAINS_IDE__) || __JETBRAINS_IDE__ >= 20170300L )
     #define CATCH_INTERNAL_CONFIG_COUNTER
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
+// Check if string_view is available and usable
+// The check is split apart to work around v140 (VS2015) preprocessor issue...
+#if defined(__has_include)
+#if __has_include(<string_view>) && defined(CATCH_CPP17_OR_GREATER)
+#    define CATCH_INTERNAL_CONFIG_CPP17_STRING_VIEW
+#endif
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+// Check if optional is available and usable
+#if defined(__has_include)
+#  if __has_include(<optional>) && defined(CATCH_CPP17_OR_GREATER)
+#    define CATCH_INTERNAL_CONFIG_CPP17_OPTIONAL
+#  endif // __has_include(<optional>) && defined(CATCH_CPP17_OR_GREATER)
+#endif // __has_include
+
+////////////////////////////////////////////////////////////////////////////////
+// Check if byte is available and usable
+#if defined(__has_include)
+#  if __has_include(<cstddef>) && defined(CATCH_CPP17_OR_GREATER)
+#    define CATCH_INTERNAL_CONFIG_CPP17_BYTE
+#  endif // __has_include(<cstddef>) && defined(CATCH_CPP17_OR_GREATER)
+#endif // __has_include
+
+////////////////////////////////////////////////////////////////////////////////
+// Check if variant is available and usable
+#if defined(__has_include)
+#  if __has_include(<variant>) && defined(CATCH_CPP17_OR_GREATER)
+#    if defined(__clang__) && (__clang_major__ < 8)
+       // work around clang bug with libstdc++ https://bugs.llvm.org/show_bug.cgi?id=31852
+       // fix should be in clang 8, workaround in libstdc++ 8.2
+#      include <ciso646>
+#      if defined(__GLIBCXX__) && defined(_GLIBCXX_RELEASE) && (_GLIBCXX_RELEASE < 9)
+#        define CATCH_CONFIG_NO_CPP17_VARIANT
+#      else
+#        define CATCH_INTERNAL_CONFIG_CPP17_VARIANT
+#      endif // defined(__GLIBCXX__) && defined(_GLIBCXX_RELEASE) && (_GLIBCXX_RELEASE < 9)
+#    else
+#      define CATCH_INTERNAL_CONFIG_CPP17_VARIANT
+#    endif // defined(__clang__) && (__clang_major__ < 8)
+#  endif // __has_include(<variant>) && defined(CATCH_CPP17_OR_GREATER)
+#endif // __has_include
+
 
 #if defined(CATCH_INTERNAL_CONFIG_COUNTER) && !defined(CATCH_CONFIG_NO_COUNTER) && !defined(CATCH_CONFIG_COUNTER)
 #   define CATCH_CONFIG_COUNTER
@@ -173,9 +248,26 @@
 #    define CATCH_CONFIG_CPP11_TO_STRING
 #endif
 
+#if defined(CATCH_INTERNAL_CONFIG_CPP17_OPTIONAL) && !defined(CATCH_CONFIG_NO_CPP17_OPTIONAL) && !defined(CATCH_CONFIG_CPP17_OPTIONAL)
+#  define CATCH_CONFIG_CPP17_OPTIONAL
+#endif
+
 #if defined(CATCH_INTERNAL_CONFIG_CPP17_UNCAUGHT_EXCEPTIONS) && !defined(CATCH_CONFIG_NO_CPP17_UNCAUGHT_EXCEPTIONS) && !defined(CATCH_CONFIG_CPP17_UNCAUGHT_EXCEPTIONS)
 #  define CATCH_CONFIG_CPP17_UNCAUGHT_EXCEPTIONS
 #endif
+
+#if defined(CATCH_INTERNAL_CONFIG_CPP17_STRING_VIEW) && !defined(CATCH_CONFIG_NO_CPP17_STRING_VIEW) && !defined(CATCH_CONFIG_CPP17_STRING_VIEW)
+#  define CATCH_CONFIG_CPP17_STRING_VIEW
+#endif
+
+#if defined(CATCH_INTERNAL_CONFIG_CPP17_VARIANT) && !defined(CATCH_CONFIG_NO_CPP17_VARIANT) && !defined(CATCH_CONFIG_CPP17_VARIANT)
+#  define CATCH_CONFIG_CPP17_VARIANT
+#endif
+
+#if defined(CATCH_INTERNAL_CONFIG_CPP17_BYTE) && !defined(CATCH_CONFIG_NO_CPP17_BYTE) && !defined(CATCH_CONFIG_CPP17_BYTE)
+#  define CATCH_CONFIG_CPP17_BYTE
+#endif
+
 
 #if defined(CATCH_CONFIG_EXPERIMENTAL_REDIRECT)
 #  define CATCH_INTERNAL_CONFIG_NEW_CAPTURE
@@ -187,6 +279,14 @@
 
 #if !defined(CATCH_INTERNAL_CONFIG_EXCEPTIONS_ENABLED) && !defined(CATCH_CONFIG_DISABLE_EXCEPTIONS)
 #  define CATCH_CONFIG_DISABLE_EXCEPTIONS
+#endif
+
+#if defined(CATCH_INTERNAL_CONFIG_POLYFILL_ISNAN) && !defined(CATCH_CONFIG_NO_POLYFILL_ISNAN) && !defined(CATCH_CONFIG_POLYFILL_ISNAN)
+#  define CATCH_CONFIG_POLYFILL_ISNAN
+#endif
+
+#if defined(CATCH_INTERNAL_CONFIG_USE_ASYNC)  && !defined(CATCH_CONFIG_NO_USE_ASYNC) && !defined(CATCH_CONFIG_USE_ASYNC)
+#  define CATCH_CONFIG_USE_ASYNC
 #endif
 
 #if !defined(CATCH_INTERNAL_SUPPRESS_PARENTHESES_WARNINGS)
@@ -201,6 +301,10 @@
 #   define CATCH_INTERNAL_SUPPRESS_UNUSED_WARNINGS
 #   define CATCH_INTERNAL_UNSUPPRESS_UNUSED_WARNINGS
 #endif
+#if !defined(CATCH_INTERNAL_SUPPRESS_ZERO_VARIADIC_WARNINGS)
+#   define CATCH_INTERNAL_SUPPRESS_ZERO_VARIADIC_WARNINGS
+#   define CATCH_INTERNAL_UNSUPPRESS_ZERO_VARIADIC_WARNINGS
+#endif
 
 #if defined(CATCH_CONFIG_DISABLE_EXCEPTIONS)
 #define CATCH_TRY if ((true))
@@ -212,6 +316,9 @@
 #define CATCH_CATCH_ANON(type) catch (type)
 #endif
 
+#if defined(CATCH_INTERNAL_CONFIG_TRADITIONAL_MSVC_PREPROCESSOR) && !defined(CATCH_CONFIG_NO_TRADITIONAL_MSVC_PREPROCESSOR) && !defined(CATCH_CONFIG_TRADITIONAL_MSVC_PREPROCESSOR)
+#define CATCH_CONFIG_TRADITIONAL_MSVC_PREPROCESSOR
+#endif
 
 #endif // TWOBLUECUBES_CATCH_COMPILER_CAPABILITIES_HPP_INCLUDED
 
